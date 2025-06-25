@@ -7,6 +7,7 @@ use App\Models\Actividad;
 use App\Models\ImagenActividad;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class ActividadController extends Controller
 {
@@ -32,6 +33,8 @@ class ActividadController extends Controller
             'imagenes.*'        => 'image|mimes:jpeg,png,webp|max:2048'
         ]);
 
+        $imagenesGuardadas = [];
+
         try {
             DB::beginTransaction();
 
@@ -50,19 +53,22 @@ class ActividadController extends Controller
                 'precio_boleto'     => $validated['precio_boleto']
             ]);
 
-            $imagenesGuardadas = [];
-
-            // Procesar imágenes si existen
             if ($request->hasFile('imagenes')) {
                 foreach ($request->file('imagenes') as $imagen) {
                     $ruta = $imagen->store("actividades/{$actividad->id}", 'public');
                     $nombre = $imagen->getClientOriginalName();
 
-                    ImagenActividad::create([
+                    $imagenCreada = ImagenActividad::create([
                         'actividad_id' => $actividad->id,
                         'url'          => $ruta,
                         'nombre'       => $nombre,
                     ]);
+
+                    $imagenesGuardadas[] = [
+                        'id'     => $imagenCreada->id,
+                        'nombre' => $nombre,
+                        'url'    => $ruta,
+                    ];
                 }
             }
 
@@ -71,11 +77,20 @@ class ActividadController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Actividad creada correctamente con imágenes.',
-                'actividad' => $actividad->append('imagenes')->toArray(),
+                'actividad' => array_merge(
+                    $actividad->toArray(),
+                    ['imagenes' => $imagenesGuardadas]
+                ),
             ], 201);
 
         } catch (\Throwable $e) {
+            // Eliminar archivos almacenados
+            foreach ($imagenesGuardadas as $img) {
+                Storage::disk('public')->delete($img['url']);
+            }
+
             DB::rollBack();
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error al crear la actividad.',

@@ -26,5 +26,10 @@ class Actividad extends Model
     {
         return $this->hasMany(ImagenActividad::class);
     }
+
+    public function boletos()
+    {
+        return $this->hasMany(Boleto::class);
+    }
 }
 

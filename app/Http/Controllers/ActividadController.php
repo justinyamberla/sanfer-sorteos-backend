@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Actividad;
+use App\Models\Boleto;
 use App\Models\ImagenActividad;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -13,11 +15,38 @@ class ActividadController extends Controller
 {
     public function index()
     {
-        $actividades = Actividad::all();
+        $actividades = Actividad::with('imagenes')->where('estado', 'activo')->get();
+
         return response()->json([
             'success' => true,
+            'message' => 'Actividades obtenidas correctamente.',
             'data' => $actividades
         ]);
+    }
+
+    public function show($id)
+    {
+        try {
+            $actividad = Actividad::with('imagenes')->findOrFail($id);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Actividad obtenida correctamente.',
+                'data' => $actividad,
+            ], 200);
+
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Actividad no encontrada.',
+            ], 404);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener la actividad.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function store(Request $request)
@@ -53,6 +82,44 @@ class ActividadController extends Controller
                 'precio_boleto'     => $validated['precio_boleto']
             ]);
 
+            // Generar los boletos
+            $totalBoletos = $validated['boletos_generados'];
+            $ganadoresNecesarios = $validated['boletos_ganadores'];
+
+            // Crear un array con todos los números de boleto
+            $boletos = [];
+            for ($i = 1; $i <= $totalBoletos; $i++) {
+                $boletos[] = [
+                    'numero'     => str_pad($i, 4, '0', STR_PAD_LEFT),
+                    'es_ganador' => false
+                ];
+            }
+
+            // Elegir boletos ganadores aleatorios
+            $indicesGanadores = collect($boletos)
+                ->keys()
+                ->random($ganadoresNecesarios);
+
+            foreach ($indicesGanadores as $index) {
+                $boletos[$index]['es_ganador'] = true;
+            }
+
+            // Crear instancias para insertarlas
+            $boletosDB = [];
+            foreach ($boletos as $b) {
+                $boletosDB[] = [
+                    'actividad_id'     => $actividad->id,
+                    'numero_boleto'    => $b['numero'],
+                    'estado'           => 'disponible',
+                    'es_ganador'       => $b['es_ganador'],
+                    'created_at'       => now(),
+                    'updated_at'       => now()
+                ];
+            }
+
+            // Insertar todos los boletos
+            Boleto::insert($boletosDB);
+
             if ($request->hasFile('imagenes')) {
                 foreach ($request->file('imagenes') as $imagen) {
                     $ruta = $imagen->store("actividades/{$actividad->id}", 'public');
@@ -77,7 +144,7 @@ class ActividadController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Actividad creada correctamente con imágenes.',
-                'actividad' => array_merge(
+                'data' => array_merge(
                     $actividad->toArray(),
                     ['imagenes' => $imagenesGuardadas]
                 ),
@@ -98,4 +165,102 @@ class ActividadController extends Controller
             ], 500);
         }
     }
+
+    public function update(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'titulo'            => 'sometimes|required|string|min:3',
+            'descripcion'       => 'sometimes|required|string|min:10',
+            'fecha_sorteo'      => 'sometimes|nullable|date',
+            'url_live_sorteo'   => 'sometimes|nullable|url',
+            'imagenes'          => 'sometimes|array',
+            'imagenes.*'        => 'image|mimes:jpeg,png,webp|max:2048'
+        ]);
+
+        $imagenesGuardadas = [];
+
+        try {
+            DB::beginTransaction();
+
+            $actividad = Actividad::with('imagenes')->findOrFail($id);
+
+            // Actualizar solo los campos enviados
+            $actividad->fill($validated);
+            $actividad->save();
+
+            // Si se suben nuevas imágenes, eliminar anteriores y guardar nuevas
+            if ($request->hasFile('imagenes')) {
+                // Eliminar imágenes anteriores (BD y disco)
+                foreach ($actividad->imagenes as $img) {
+                    Storage::disk('public')->delete($img->url);
+                    $img->delete();
+                }
+
+                // Guardar nuevas imágenes
+                foreach ($request->file('imagenes') as $imagen) {
+                    $ruta = $imagen->store("actividades/{$actividad->id}", 'public');
+                    $nombre = $imagen->getClientOriginalName();
+
+                    $imagenCreada = ImagenActividad::create([
+                        'actividad_id' => $actividad->id,
+                        'url'          => $ruta,
+                        'nombre'       => $nombre,
+                    ]);
+
+                    $imagenesGuardadas[] = [
+                        'id'     => $imagenCreada->id,
+                        'nombre' => $nombre,
+                        'url'    => $ruta,
+                    ];
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Actividad actualizada correctamente.',
+                'data' => array_merge(
+                    $actividad->toArray(),
+                    ['imagenes' => $imagenesGuardadas ?: $actividad->imagenes->toArray()]
+                ),
+            ], 200);
+
+        } catch (\Throwable $e) {
+            // Si falló algo y se guardaron imágenes nuevas, las eliminamos
+            foreach ($imagenesGuardadas as $img) {
+                Storage::disk('public')->delete($img['url']);
+            }
+
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al actualizar la actividad.',
+                'error'   => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function destroy($id)
+    {
+        try {
+            $actividad = Actividad::findOrFail($id);
+            $actividad->estado = 'eliminado';
+            $actividad->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Actividad eliminada correctamente.',
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al eliminar la actividad.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
 }

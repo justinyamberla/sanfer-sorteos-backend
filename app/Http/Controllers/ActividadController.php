@@ -171,10 +171,8 @@ class ActividadController extends Controller
         $validated = $request->validate([
             'titulo'            => 'sometimes|required|string|min:3',
             'descripcion'       => 'sometimes|required|string|min:10',
-            'fecha_inicio'      => 'sometimes|required|date',
-            'boletos_generados' => 'sometimes|required|integer|min:1',
-            'boletos_ganadores' => 'sometimes|required|integer|min:1',
-            'precio_boleto'     => 'sometimes|required|numeric',
+            'fecha_sorteo'      => 'sometimes|nullable|date',
+            'url_live_sorteo'   => 'sometimes|nullable|url',
             'imagenes'          => 'sometimes|array',
             'imagenes.*'        => 'image|mimes:jpeg,png,webp|max:2048'
         ]);

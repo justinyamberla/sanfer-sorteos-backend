@@ -31,5 +31,14 @@ class Actividad extends Model
     {
         return $this->hasMany(Boleto::class);
     }
+
+    protected $appends = ['lista_boletos_ganadores'];
+
+    public function getListaBoletosGanadoresAttribute()
+    {
+        return $this->boletos()
+            ->where('es_ganador', true)
+            ->pluck('numero_boleto'); // solo devuelve los números
+    }
 }
 

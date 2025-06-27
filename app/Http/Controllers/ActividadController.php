@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Actividad;
+use App\Models\Boleto;
 use App\Models\ImagenActividad;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -33,7 +35,7 @@ class ActividadController extends Controller
                 'data' => $actividad,
             ], 200);
 
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        } catch (ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Actividad no encontrada.',
@@ -79,6 +81,44 @@ class ActividadController extends Controller
                 'url_live_sorteo'   => $validated['url_live_sorteo'] ?? null,
                 'precio_boleto'     => $validated['precio_boleto']
             ]);
+
+            // Generar los boletos
+            $totalBoletos = $validated['boletos_generados'];
+            $ganadoresNecesarios = $validated['boletos_ganadores'];
+
+            // Crear un array con todos los números de boleto
+            $boletos = [];
+            for ($i = 1; $i <= $totalBoletos; $i++) {
+                $boletos[] = [
+                    'numero'     => str_pad($i, 4, '0', STR_PAD_LEFT),
+                    'es_ganador' => false
+                ];
+            }
+
+            // Elegir boletos ganadores aleatorios
+            $indicesGanadores = collect($boletos)
+                ->keys()
+                ->random($ganadoresNecesarios);
+
+            foreach ($indicesGanadores as $index) {
+                $boletos[$index]['es_ganador'] = true;
+            }
+
+            // Crear instancias para insertarlas
+            $boletosDB = [];
+            foreach ($boletos as $b) {
+                $boletosDB[] = [
+                    'actividad_id'     => $actividad->id,
+                    'numero_boleto'    => $b['numero'],
+                    'estado'           => 'disponible',
+                    'es_ganador'       => $b['es_ganador'],
+                    'created_at'       => now(),
+                    'updated_at'       => now()
+                ];
+            }
+
+            // Insertar todos los boletos
+            Boleto::insert($boletosDB);
 
             if ($request->hasFile('imagenes')) {
                 foreach ($request->file('imagenes') as $imagen) {

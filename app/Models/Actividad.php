@@ -12,10 +12,14 @@ class Actividad extends Model
         'titulo',
         'descripcion',
         'fecha_inicio',
+        'fecha_fin',
+        'fecha_sorteo',
         'boletos_generados',
+        'boletos_vendidos',
         'boletos_ganadores',
-        'precio_boleto',
+        'estado',
         'url_live_sorteo',
+        'precio_boleto',
     ];
 
     public function imagenes()
@@ -23,3 +27,4 @@ class Actividad extends Model
         return $this->hasMany(ImagenActividad::class);
     }
 }
+

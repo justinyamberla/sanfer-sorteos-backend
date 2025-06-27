@@ -13,11 +13,38 @@ class ActividadController extends Controller
 {
     public function index()
     {
-        $actividades = Actividad::all();
+        $actividades = Actividad::with('imagenes')->where('estado', 'activo')->get();
+
         return response()->json([
             'success' => true,
+            'message' => 'Actividades obtenidas correctamente.',
             'data' => $actividades
         ]);
+    }
+
+    public function show($id)
+    {
+        try {
+            $actividad = Actividad::with('imagenes')->findOrFail($id);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Actividad obtenida correctamente.',
+                'data' => $actividad,
+            ], 200);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Actividad no encontrada.',
+            ], 404);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener la actividad.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function store(Request $request)
@@ -177,26 +204,22 @@ class ActividadController extends Controller
         }
     }
 
-    public function show($id)
+    public function destroy($id)
     {
         try {
-            $actividad = Actividad::with('imagenes')->findOrFail($id);
+            $actividad = Actividad::findOrFail($id);
+            $actividad->estado = 'eliminado';
+            $actividad->save();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Actividad obtenida correctamente.',
-                'data' => $actividad,
+                'message' => 'Actividad eliminada correctamente.',
             ], 200);
 
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Actividad no encontrada.',
-            ], 404);
-        } catch (\Throwable $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al obtener la actividad.',
+                'message' => 'Error al eliminar la actividad.',
                 'error' => $e->getMessage(),
             ], 500);
         }

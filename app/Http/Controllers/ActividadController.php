@@ -49,6 +49,35 @@ class ActividadController extends Controller
         }
     }
 
+    public function ultimaActividadActiva()
+    {
+        try {
+            $actividad = Actividad::with(['imagenes'])
+                ->where('estado', 'activo')
+                ->latest('created_at')
+                ->first();
+
+            if (!$actividad) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No hay actividades activas.'
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Última actividad activa obtenida correctamente.',
+                'data' => $actividad
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener la actividad.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([

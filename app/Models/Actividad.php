@@ -8,6 +8,7 @@ class Actividad extends Model
 {
     protected $table = 'actividades';
     protected $fillable = [
+        'nombre',
         'titulo',
         'descripcion',
         'fecha_inicio',

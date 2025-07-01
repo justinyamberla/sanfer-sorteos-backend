@@ -81,7 +81,8 @@ class ActividadController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'titulo'            => 'required|string|min:3',
+            'nombre'            => 'required|string|min:10',
+            'titulo'            => 'required|string|min:10',
             'descripcion'       => 'required|string|min:10',
             'fecha_inicio'      => 'required|date',
             'boletos_generados' => 'required|integer|min:1',
@@ -98,6 +99,7 @@ class ActividadController extends Controller
 
             // Crear la actividad
             $actividad = Actividad::create([
+                'nombre'            => $validated['nombre'],
                 'titulo'            => $validated['titulo'],
                 'descripcion'       => $validated['descripcion'],
                 'fecha_inicio'      => $validated['fecha_inicio'],
@@ -172,7 +174,7 @@ class ActividadController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Actividad creada correctamente con imágenes.',
+                'message' => 'Actividad creada correctamente.',
                 'data' => array_merge(
                     $actividad->toArray(),
                     ['imagenes' => $imagenesGuardadas]
@@ -198,7 +200,8 @@ class ActividadController extends Controller
     public function update(Request $request, $id)
     {
         $validated = $request->validate([
-            'titulo'            => 'sometimes|required|string|min:3',
+            'nombre'            => 'sometimes|required|string|min:10',
+            'titulo'            => 'sometimes|required|string|min:10',
             'descripcion'       => 'sometimes|required|string|min:10',
             'fecha_sorteo'      => 'sometimes|nullable|date',
             'url_live_sorteo'   => 'sometimes|nullable|url',

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class ActividadController extends Controller
 {
@@ -152,20 +153,38 @@ class ActividadController extends Controller
             Boleto::insert($boletosDB);
 
             if ($request->hasFile('imagenes')) {
-                foreach ($request->file('imagenes') as $imagen) {
-                    $ruta = $imagen->store("actividades/{$actividad->id}", 'public');
-                    $nombre = $imagen->getClientOriginalName();
+                foreach ($request->file('imagenes') as $index => $imagen) {
+                    $uuid = (string) Str::uuid();
+
+                    $extension = $imagen->extension(); // ej: jpg, png
+
+                    // Guardar con nombre UUID.extension
+                    $ruta = $imagen->storeAs(
+                        "actividades/{$actividad->id}",
+                        "{$uuid}.{$extension}",
+                        'public'
+                    );
+
+                    $nombreOriginal = $imagen->getClientOriginalName();
+                    $tamano  = $imagen->getSize();
+                    $formato = $extension;
 
                     $imagenCreada = ImagenActividad::create([
+                        'uuid'         => $uuid,
                         'actividad_id' => $actividad->id,
-                        'url'          => $ruta,
-                        'nombre'       => $nombre,
+                        'nombre'       => $nombreOriginal,
+                        'tamano'       => $tamano,
+                        'formato'      => $formato,
+                        'orden'        => $index + 1
                     ]);
 
                     $imagenesGuardadas[] = [
+                        'ruta'   => $ruta,
                         'id'     => $imagenCreada->id,
-                        'nombre' => $nombre,
-                        'url'    => $ruta,
+                        'uuid'   => $uuid,
+                        'nombre' => $nombreOriginal,
+                        'tamano' => $tamano,
+                        'formato'=> $formato,
                     ];
                 }
             }
@@ -182,9 +201,10 @@ class ActividadController extends Controller
             ], 201);
 
         } catch (\Throwable $e) {
-            // Eliminar archivos almacenados
             foreach ($imagenesGuardadas as $img) {
-                Storage::disk('public')->delete($img['url']);
+                if (isset($img['ruta'])) {
+                    Storage::disk('public')->delete($img['ruta']);
+                }
             }
 
             DB::rollBack();
@@ -200,13 +220,12 @@ class ActividadController extends Controller
     public function update(Request $request, $id)
     {
         $validated = $request->validate([
-            'nombre'            => 'sometimes|required|string|min:10',
-            'titulo'            => 'sometimes|required|string|min:10',
-            'descripcion'       => 'sometimes|required|string|min:10',
-            'fecha_sorteo'      => 'sometimes|nullable|date',
-            'url_live_sorteo'   => 'sometimes|nullable|url',
-            'imagenes'          => 'sometimes|array',
-            'imagenes.*'        => 'image|mimes:jpeg,png,webp|max:2048'
+            'titulo'          => 'required|string|min:10',
+            'descripcion'     => 'required|string|min:10',
+            'fecha_sorteo'    => 'nullable|date',
+            'url_live_sorteo' => 'nullable|url',
+            'imagenes'        => 'required|array',
+            'imagenes.*'      => 'image|mimes:jpeg,png,webp|max:2048'
         ]);
 
         $imagenesGuardadas = [];
@@ -214,35 +233,52 @@ class ActividadController extends Controller
         try {
             DB::beginTransaction();
 
-            $actividad = Actividad::with('imagenes')->findOrFail($id);
+            $actividad = Actividad::findOrFail($id);
+            $actividad->update([
+                'titulo'          => $validated['titulo'],
+                'descripcion'     => $validated['descripcion'],
+                'fecha_sorteo'    => $validated['fecha_sorteo'] ?? null,
+                'url_live_sorteo' => $validated['url_live_sorteo'] ?? null,
+            ]);
 
-            // Actualizar solo los campos enviados
-            $actividad->fill($validated);
-            $actividad->save();
+            // 1. Eliminar imágenes anteriores (físicamente + BD)
+            foreach ($actividad->imagenes as $imagen) {
+                Storage::disk('public')->delete("actividades/{$actividad->id}/{$imagen->uuid}.{$imagen->formato}");
+                $imagen->delete();
+            }
 
-            // Si se suben nuevas imágenes, eliminar anteriores y guardar nuevas
+            // 2. Guardar nuevas imágenes (UUID, orden, etc)
             if ($request->hasFile('imagenes')) {
-                // Eliminar imágenes anteriores (BD y disco)
-                foreach ($actividad->imagenes as $img) {
-                    Storage::disk('public')->delete($img->url);
-                    $img->delete();
-                }
+                foreach ($request->file('imagenes') as $index => $imagen) {
+                    $uuid = (string) Str::uuid();
+                    $extension = $imagen->extension();
 
-                // Guardar nuevas imágenes
-                foreach ($request->file('imagenes') as $imagen) {
-                    $ruta = $imagen->store("actividades/{$actividad->id}", 'public');
-                    $nombre = $imagen->getClientOriginalName();
+                    $ruta = $imagen->storeAs(
+                        "actividades/{$actividad->id}",
+                        "{$uuid}.{$extension}",
+                        'public'
+                    );
+
+                    $nombreOriginal = $imagen->getClientOriginalName();
+                    $tamano = $imagen->getSize();
+                    $formato = $extension;
 
                     $imagenCreada = ImagenActividad::create([
+                        'uuid'         => $uuid,
                         'actividad_id' => $actividad->id,
-                        'url'          => $ruta,
-                        'nombre'       => $nombre,
+                        'nombre'       => $nombreOriginal,
+                        'tamano'       => $tamano,
+                        'formato'      => $formato,
+                        'orden'        => $index + 1
                     ]);
 
                     $imagenesGuardadas[] = [
+                        'ruta'   => $ruta,
                         'id'     => $imagenCreada->id,
-                        'nombre' => $nombre,
-                        'url'    => $ruta,
+                        'uuid'   => $uuid,
+                        'nombre' => $nombreOriginal,
+                        'tamano' => $tamano,
+                        'formato'=> $formato,
                     ];
                 }
             }
@@ -254,14 +290,15 @@ class ActividadController extends Controller
                 'message' => 'Actividad actualizada correctamente.',
                 'data' => array_merge(
                     $actividad->toArray(),
-                    ['imagenes' => $imagenesGuardadas ?: $actividad->imagenes->toArray()]
-                ),
-            ], 200);
-
+                    ['imagenes' => $imagenesGuardadas]
+                )
+            ]);
         } catch (\Throwable $e) {
-            // Si falló algo y se guardaron imágenes nuevas, las eliminamos
+            // Rollback: eliminar nuevas subidas si algo falla
             foreach ($imagenesGuardadas as $img) {
-                Storage::disk('public')->delete($img['url']);
+                if (isset($img['ruta'])) {
+                    Storage::disk('public')->delete($img['ruta']);
+                }
             }
 
             DB::rollBack();

@@ -9,11 +9,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('imagenes_actividad', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('uuid')->primary(); // UUID como clave primaria
+
             $table->foreignId('actividad_id')->constrained('actividades')->onDelete('cascade');
-            $table->string('url'); // o text si piensas usar rutas largas
-            $table->string('nombre')->nullable(); // opcional si no siempre se usa
+            $table->string('nombre')->nullable();
             $table->unsignedInteger('orden')->nullable();
+
+            $table->unsignedBigInteger('tamano')->nullable(); // tamaño en bytes
+            $table->string('formato')->nullable();            // por ejemplo: jpeg, png, webp
+
             $table->timestamps();
         });
     }

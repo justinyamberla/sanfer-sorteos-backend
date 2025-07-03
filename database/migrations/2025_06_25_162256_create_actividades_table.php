@@ -22,7 +22,7 @@ return new class extends Migration
             $table->integer('boletos_generados');
             $table->integer('boletos_vendidos')->default(0);
             $table->integer('boletos_ganadores');
-            $table->enum('estado', ['activo', 'inactivo', 'finalizado'])->default('activo');
+            $table->enum('estado', ['activo', 'eliminado', 'finalizado'])->default('activo');
             $table->string('url_live_sorteo')->nullable();
             $table->decimal('precio_boleto');
             $table->timestamps();

@@ -7,13 +7,22 @@ use Illuminate\Database\Eloquent\Model;
 class Cliente extends Model
 {
     protected $fillable = [
-        'nombre', // Agrega los campos que vayas a usar
+        'nombres',
+        'apellidos',
         'email',
-        'telefono'
+        'telefono',
+        'direccion',
+        'ciudad',
+        'provincia',
     ];
 
     public function boletos()
     {
         return $this->hasMany(Boleto::class);
+    }
+
+    public function pedidos()
+    {
+        return $this->hasMany(Pedido::class);
     }
 }

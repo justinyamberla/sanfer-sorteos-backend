@@ -315,8 +315,19 @@ class ActividadController extends Controller
     {
         try {
             $actividad = Actividad::findOrFail($id);
+
+            // Cambiar estado a 'eliminado'
             $actividad->estado = 'eliminado';
             $actividad->save();
+
+            // Eliminar imágenes físicas del storage
+            $rutaCarpeta = "actividades/{$actividad->id}";
+            if (Storage::disk('public')->exists($rutaCarpeta)) {
+                Storage::disk('public')->deleteDirectory($rutaCarpeta);
+            }
+
+            // Eliminar registros de imágenes en la base de datos
+            ImagenActividad::where('actividad_id', $actividad->id)->delete();
 
             return response()->json([
                 'success' => true,
@@ -327,9 +338,8 @@ class ActividadController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error al eliminar la actividad.',
-                'error' => $e->getMessage(),
+                'error'   => $e->getMessage(),
             ], 500);
         }
     }
-
 }

@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('direccion')->nullable();
             $table->string('ciudad')->nullable();
             $table->string('provincia')->nullable();
+            $table->boolean('recibir_notificaciones')->default(false);
             $table->timestamps();
         });
     }

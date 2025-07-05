@@ -14,6 +14,7 @@ class Cliente extends Model
         'direccion',
         'ciudad',
         'provincia',
+        'recibir_notificaciones',
     ];
 
     public function boletos()

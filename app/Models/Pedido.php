@@ -34,4 +34,12 @@ class Pedido extends Model
     {
         return $this->hasMany(Boleto::class);
     }
+
+    public function getProductoAttribute()
+    {
+        if ($this->relationLoaded('actividad') && $this->actividad) {
+            return 'Números ' . $this->actividad->nombre . ' - ' . $this->actividad->titulo;
+        }
+        return null;
+    }
 }

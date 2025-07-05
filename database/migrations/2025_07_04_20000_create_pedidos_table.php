@@ -18,7 +18,7 @@ return new class extends Migration
             $table->foreignId('cliente_id')->constrained()->onDelete('cascade');
             $table->unsignedInteger('cantidad_boletos');
             $table->decimal('total', 10, 2);
-            $table->enum('metodo_pago', ['tarjeta', 'transferencia', 'deposito']);
+            $table->enum('metodo_pago', ['tarjeta', 'offline']);
             $table->enum('estado', ['pendiente', 'pagado', 'cancelado'])->default('pendiente');
             $table->timestamp('fecha_pedido')->useCurrent();
             $table->timestamp('fecha_pago')->nullable();
